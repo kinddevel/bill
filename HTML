@@ -111,12 +111,16 @@
 
   function load() {
     google.script.run.withSuccessHandler(res => {
-      allData = res;
-      document.getElementById('k1').innerText = res.summary.제출;
-      document.getElementById('k2').innerText = res.summary.승인;
-      document.getElementById('k3').innerText = res.summary.반려;
+      allData = res || {};
+      const summary = allData.summary || { 제출: 0, 승인: 0, 반려: 0 };
+      document.getElementById('k1').innerText = summary.제출 || 0;
+      document.getElementById('k2').innerText = summary.승인 || 0;
+      document.getElementById('k3').innerText = summary.반려 || 0;
       renderMyList();
       filterList('승인자');
+    }).withFailureHandler(err => {
+      console.error(err);
+      alert('데이터 조회 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     }).API_데이터로드();
   }
 
@@ -129,10 +133,13 @@
 
     let h = '<table><tr><th>사용일</th><th>사용처</th><th>금액</th><th>상태</th><th>관리</th></tr>';
     rows.forEach(r => {
-      const statusClass = r.상태 === '승인(최종)' ? '완료' : (r.상태.includes('반려') ? '반려' : '제출');
-      h += `<tr><td>${new Date(r.사용일).toLocaleDateString()}</td><td>${r.사용처}</td>
+      const statusText = String((r && r.상태) || '');
+      const statusClass = statusText === '승인(최종)' ? '완료' : (statusText.includes('반려') ? '반려' : '제출');
+      const dateObj = new Date(r && r.사용일);
+      const dateText = Number.isNaN(dateObj.getTime()) ? '' : dateObj.toLocaleDateString();
+      h += `<tr><td>${dateText}</td><td>${(r && r.사용처) || ''}</td>
             <td>${Number(r.금액).toLocaleString()}</td>
-            <td class="status-${statusClass}">${r.상태}</td>
+            <td class="status-${statusClass}">${statusText}</td>
             <td><button style="background:#f59e0b; padding:4px 8px;" onclick="edit('${r.번호}')">수정</button></td></tr>`;
     });
     document.getElementById('my-list').innerHTML = h + '</table>';
@@ -150,9 +157,10 @@
     }
 
     let rows = [];
-    if (type === '승인자') rows = allData.allRows.filter(r => r.상태 === '제출');
-    else if (type === '관리자') rows = allData.allRows.filter(r => r.상태 === '승인자승인');
-    else rows = allData.allRows.filter(r => r.상태 === '승인(최종)' || r.상태 === '반려');
+    const allRows = allData.allRows || [];
+    if (type === '승인자') rows = allRows.filter(r => r.상태 === '제출');
+    else if (type === '관리자') rows = allRows.filter(r => r.상태 === '승인자승인');
+    else rows = allRows.filter(r => r.상태 === '승인(최종)' || r.상태 === '반려');
 
     let h = '<table><tr><th>요청자</th><th>내용</th><th>금액</th><th>상태</th><th>처리</th></tr>';
     rows.forEach(r => {
@@ -174,7 +182,7 @@
       const labels = ['영수증','사진','세금계산서','거래명세서','견적서','발주서'];
       for (let i = 1; i <= 6; i++) {
         const el = document.getElementById('up-' + i);
-        if (el.files.length > 0) {
+        if (el && el.files && el.files.length > 0) {
           const file = el.files[0];
           const base64 = await new Promise(r => {
             const reader = new FileReader();
@@ -220,7 +228,8 @@
     showTab('reg');
     document.getElementById('reg-title').innerText = '지출 내역 수정 (#' + no + ')';
     document.getElementById('edit-no').value = no;
-    document.getElementById('f-date').value = new Date(r.사용일).toISOString().split('T')[0];
+    const d = new Date(r.사용일);
+    document.getElementById('f-date').value = Number.isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
     document.getElementById('f-place').value = r.사용처;
     document.getElementById('f-amount').value = r.금액;
     document.getElementById('f-method').value = r.결제수단;

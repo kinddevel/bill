@@ -28,7 +28,23 @@ function run_bindSpreadsheet() {
 
 function _ss_() {
   const id = PropertiesService.getScriptProperties().getProperty('SS_ID');
-  return id ? SpreadsheetApp.openById(id) : SpreadsheetApp.getActiveSpreadsheet();
+  if (id) {
+    try {
+      return SpreadsheetApp.openById(id);
+    } catch (e) {
+      Logger.log('SS_ID 열기 실패: ' + e);
+    }
+  }
+  return SpreadsheetApp.getActiveSpreadsheet();
+}
+
+function _safeLower_(v) {
+  return String(v || '').toLowerCase().trim();
+}
+
+function _정규권한_(v) {
+  const role = String(v || '').trim();
+  return [ROLE.USER, ROLE.APPROVER, ROLE.ADMIN].includes(role) ? role : ROLE.USER;
 }
 
 function _ensureSheets_() {
@@ -54,13 +70,19 @@ function onOpen() {
 }
 
 function 현재사용자_() {
-  const googleEmail = String(Session.getActiveUser().getEmail() || '').toLowerCase().trim();
+  const googleEmail = _safeLower_(Session.getActiveUser().getEmail());
   const sh = _ss_().getSheetByName(SHEET.USERS);
   const data = sh ? sh.getDataRange().getValues() : [];
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][1]).toLowerCase().trim() === googleEmail) {
-      return { 이메일: data[i][0], 구글이메일: data[i][1], 이름: data[i][2], 권한: data[i][3], 매핑: true };
+    if (_safeLower_(data[i][1]) === googleEmail) {
+      return {
+        이메일: String(data[i][0] || googleEmail).trim(),
+        구글이메일: String(data[i][1] || googleEmail).trim(),
+        이름: String(data[i][2] || '미등록사용자').trim(),
+        권한: _정규권한_(data[i][3]),
+        매핑: true
+      };
     }
   }
   return { 이메일: googleEmail, 구글이메일: googleEmail, 이름: '미등록사용자', 권한: ROLE.USER, 매핑: false };
@@ -68,7 +90,7 @@ function 현재사용자_() {
 
 function doGet() {
   _ensureSheets_();
-  const t = HtmlService.createTemplateFromFile('index');
+  const t = HtmlService.createTemplateFromFile('HTML');
   t.현재사용자 = 현재사용자_();
   return t.evaluate().setTitle('사내 결제 시스템').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -83,7 +105,8 @@ function API_데이터로드() {
   const data = sh.getDataRange().getValues();
   const rows = [];
   for (let i = 1; i < data.length; i++) {
-    if (data[i][19] === true) continue;
+    if (data[i][19] === true || data[i][19] === 'TRUE') continue;
+    if (!data[i][0]) continue;
     rows.push({
       번호: data[i][0], 등록일시: data[i][1], 사용일: data[i][2], 요청자이메일: data[i][3], 요청자이름: data[i][4],
       사용처: data[i][5], 금액: data[i][6], 결제수단: data[i][7], 분류: data[i][8], 메모: data[i][9],
@@ -93,7 +116,7 @@ function API_데이터로드() {
   }
 
   const myRows = rows
-    .filter(r => String(r.요청자이메일).toLowerCase() === u.이메일.toLowerCase() || String(r.요청자이메일).toLowerCase() === u.구글이메일.toLowerCase())
+    .filter(r => _safeLower_(r.요청자이메일) === _safeLower_(u.이메일) || _safeLower_(r.요청자이메일) === _safeLower_(u.구글이메일))
     .sort((a, b) => new Date(b.등록일시).getTime() - new Date(a.등록일시).getTime());
 
   return {
@@ -110,8 +133,11 @@ function API_데이터로드() {
 }
 
 function API_지출저장(p) {
+  p = p || {};
   const u = 현재사용자_();
   const sh = _ss_().getSheetByName(SHEET.EXPENSE);
+  if (!sh) return { ok: false, error: '지출내역 시트를 찾을 수 없습니다.' };
+
   let rowIdx = -1;
   let nextId = Number(p.번호);
   let prevFiles = { 영수증: '', 사진: '', 세금계산서: '', 거래명세서: '', 견적서: '', 발주서: '' };
@@ -121,7 +147,7 @@ function API_지출저장(p) {
     rowIdx = ids.indexOf(Number(p.번호)) + 1;
     if (rowIdx > 1) {
       const prev = sh.getRange(rowIdx, 1, 1, HEADERS.length).getValues()[0];
-      if (String(prev[3]).toLowerCase() !== u.이메일.toLowerCase() && u.권한 === ROLE.USER) {
+      if (_safeLower_(prev[3]) !== _safeLower_(u.이메일) && u.권한 === ROLE.USER) {
         return { ok: false, error: '본인 데이터만 수정할 수 있습니다.' };
       }
       prevFiles = { 영수증: prev[13], 사진: prev[14], 세금계산서: prev[15], 거래명세서: prev[16], 견적서: prev[17], 발주서: prev[18] };
@@ -131,13 +157,14 @@ function API_지출저장(p) {
     nextId = ids.length ? Math.max(...ids) + 1 : 1;
   }
 
+  const inputFiles = p.파일 || {};
   const finalFiles = {
-    영수증: p.파일.영수증 || prevFiles.영수증,
-    사진: p.파일.사진 || prevFiles.사진,
-    세금계산서: p.파일.세금계산서 || prevFiles.세금계산서,
-    거래명세서: p.파일.거래명세서 || prevFiles.거래명세서,
-    견적서: p.파일.견적서 || prevFiles.견적서,
-    발주서: p.파일.발주서 || prevFiles.발주서
+    영수증: inputFiles.영수증 || prevFiles.영수증,
+    사진: inputFiles.사진 || prevFiles.사진,
+    세금계산서: inputFiles.세금계산서 || prevFiles.세금계산서,
+    거래명세서: inputFiles.거래명세서 || prevFiles.거래명세서,
+    견적서: inputFiles.견적서 || prevFiles.견적서,
+    발주서: inputFiles.발주서 || prevFiles.발주서
   };
 
   const row = [
@@ -155,6 +182,7 @@ function API_지출저장(p) {
 }
 
 function API_승인처리(p) {
+  p = p || {};
   const u = 현재사용자_();
   if (u.권한 === ROLE.USER) return { ok: false, error: '권한이 없습니다.' };
 
@@ -166,18 +194,24 @@ function API_승인처리(p) {
   const row = sh.getRange(rowIdx, 1, 1, HEADERS.length).getValues()[0];
   const current = row[10];
   let status = current;
+  const decision = String(p.결정 || '').trim();
 
-  if (p.결정 === STATUS.REJECT) {
+  if (decision === STATUS.REJECT) {
+    if (![STATUS.SUBMITTED, STATUS.APPROVER_OK].includes(current)) {
+      return { ok: false, error: '처리 가능한 상태가 아닙니다.' };
+    }
     status = STATUS.REJECT;
-  } else if (u.권한 === ROLE.ADMIN) {
+  } else if (u.권한 === ROLE.ADMIN && decision === STATUS.FINAL_OK && current === STATUS.APPROVER_OK) {
     status = STATUS.FINAL_OK;
-  } else if (u.권한 === ROLE.APPROVER && current === STATUS.SUBMITTED) {
+  } else if (u.권한 === ROLE.APPROVER && decision === STATUS.APPROVER_OK && current === STATUS.SUBMITTED) {
     status = STATUS.APPROVER_OK;
+  } else {
+    return { ok: false, error: '권한 또는 상태 조건이 맞지 않습니다.' };
   }
 
   sh.getRange(rowIdx, 11).setValue(status);
   sh.getRange(rowIdx, 12).setValue(u.이메일 || u.구글이메일);
-  if (p.사유) sh.getRange(rowIdx, 21).setValue(p.사유);
+  sh.getRange(rowIdx, 21).setValue(status === STATUS.REJECT ? String(p.사유 || '').trim() : '');
   if (status === STATUS.FINAL_OK) sh.getRange(rowIdx, 13).setValue(new Date());
 
   return { ok: true, status };
