@@ -99,6 +99,9 @@
 
 <script>
   let allData = {};
+  const ROLE = { USER: '사용자' };
+  const STATUS = { SUBMITTED: '제출', APPROVER_OK: '승인자승인', FINAL_OK: '승인(최종)', REJECT: '반려' };
+  const FILE_LABELS = ['영수증', '사진', '세금계산서', '거래명세서', '견적서', '발주서'];
 
   function showTab(t, tabEl = null) {
     document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display = 'none');
@@ -129,7 +132,7 @@
 
     let h = '<table><tr><th>사용일</th><th>사용처</th><th>금액</th><th>상태</th><th>관리</th></tr>';
     rows.forEach(r => {
-      const statusClass = r.상태 === '승인(최종)' ? '완료' : (r.상태.includes('반려') ? '반려' : '제출');
+      const statusClass = getStatusClass(r.상태);
       h += `<tr><td>${new Date(r.사용일).toLocaleDateString()}</td><td>${r.사용처}</td>
             <td>${Number(r.금액).toLocaleString()}</td>
             <td class="status-${statusClass}">${r.상태}</td>
@@ -144,19 +147,19 @@
       tabEl.classList.add('active');
     }
 
-    if ((allData.role || '사용자') === '사용자') {
+    if ((allData.role || ROLE.USER) === ROLE.USER) {
       document.getElementById('approval-box').innerHTML = '승인 권한이 없습니다.';
       return;
     }
 
     let rows = [];
-    if (type === '승인자') rows = allData.allRows.filter(r => r.상태 === '제출');
-    else if (type === '관리자') rows = allData.allRows.filter(r => r.상태 === '승인자승인');
-    else rows = allData.allRows.filter(r => r.상태 === '승인(최종)' || r.상태 === '반려');
+    if (type === '승인자') rows = allData.allRows.filter(r => r.상태 === STATUS.SUBMITTED);
+    else if (type === '관리자') rows = allData.allRows.filter(r => r.상태 === STATUS.APPROVER_OK);
+    else rows = allData.allRows.filter(r => r.상태 === STATUS.FINAL_OK || r.상태 === STATUS.REJECT);
 
     let h = '<table><tr><th>요청자</th><th>내용</th><th>금액</th><th>상태</th><th>처리</th></tr>';
     rows.forEach(r => {
-      const approveValue = (type === '관리자') ? '승인(최종)' : '승인자승인';
+      const approveValue = (type === '관리자') ? STATUS.FINAL_OK : STATUS.APPROVER_OK;
       h += `<tr><td>${r.요청자이름}</td><td>${r.사용처}</td><td>${Number(r.금액).toLocaleString()}</td>
             <td>${r.상태}</td>
             <td><button onclick="proc('${r.번호}','${approveValue}')">승인</button>
@@ -165,13 +168,20 @@
     document.getElementById('approval-box').innerHTML = rows.length ? h + '</table>' : '내역이 없습니다.';
   }
 
+
+  function getStatusClass(status) {
+    if (status === STATUS.FINAL_OK) return '완료';
+    if (String(status || '').includes(STATUS.REJECT)) return '반려';
+    return '제출';
+  }
+
   async function save() {
     const btn = document.getElementById('btn-save');
     btn.disabled = true; btn.innerText = '처리 중...';
 
     try {
       const files = {};
-      const labels = ['영수증','사진','세금계산서','거래명세서','견적서','발주서'];
+      const labels = FILE_LABELS;
       for (let i = 1; i <= 6; i++) {
         const el = document.getElementById('up-' + i);
         if (el.files.length > 0) {
@@ -240,7 +250,7 @@
   }
 
   function proc(no, decision) {
-    const reason = decision === '반려' ? prompt('반려 사유:') || '' : '';
+    const reason = decision === STATUS.REJECT ? prompt('반려 사유:') || '' : '';
     google.script.run.withSuccessHandler((res) => {
       if (!res.ok) {
         alert(res.error || '처리 실패');

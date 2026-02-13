@@ -19,6 +19,44 @@ const HEADERS = [
   '세금계산서', '거래명세서', '견적서', '발주서', '삭제여부', '반려사유'
 ];
 
+
+const FILE_FIELDS = ['영수증', '사진', '세금계산서', '거래명세서', '견적서', '발주서'];
+
+function _emptyFiles_() {
+  return FILE_FIELDS.reduce((acc, key) => {
+    acc[key] = '';
+    return acc;
+  }, {});
+}
+
+function _filesFromRow_(row) {
+  return FILE_FIELDS.reduce((acc, key, idx) => {
+    acc[key] = row[13 + idx] || '';
+    return acc;
+  }, {});
+}
+
+function _findRowById_(sheet, id) {
+  const ids = sheet.getRange('A:A').getValues().flat();
+  return ids.indexOf(Number(id)) + 1;
+}
+
+function _nextExpenseId_(sheet) {
+  const ids = sheet.getRange('A:A').getValues().flat().filter(Number);
+  return ids.length ? Math.max(...ids) + 1 : 1;
+}
+
+function _toExpenseRow_(id, payload, user, files) {
+  return [
+    id, new Date(), payload.사용일, user.이메일, user.이름,
+    payload.사용처, Number(payload.금액 || 0), payload.결제수단, payload.분류, payload.메모,
+    STATUS.SUBMITTED, '', '',
+    ...FILE_FIELDS.map(key => files[key] || ''),
+    false, ''
+  ];
+}
+
+
 function run_bindSpreadsheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   PropertiesService.getScriptProperties().setProperty('SS_ID', ss.getId());
@@ -68,7 +106,7 @@ function 현재사용자_() {
 
 function doGet() {
   _ensureSheets_();
-  const t = HtmlService.createTemplateFromFile('index');
+  const t = HtmlService.createTemplateFromFile('HTML');
   t.현재사용자 = 현재사용자_();
   return t.evaluate().setTitle('사내 결제 시스템').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -88,7 +126,7 @@ function API_데이터로드() {
       번호: data[i][0], 등록일시: data[i][1], 사용일: data[i][2], 요청자이메일: data[i][3], 요청자이름: data[i][4],
       사용처: data[i][5], 금액: data[i][6], 결제수단: data[i][7], 분류: data[i][8], 메모: data[i][9],
       상태: data[i][10], 승인자이메일: data[i][11], 최종처리일시: data[i][12], 반려사유: data[i][20],
-      파일: { 영수증: data[i][13], 사진: data[i][14], 세금계산서: data[i][15], 거래명세서: data[i][16], 견적서: data[i][17], 발주서: data[i][18] }
+      파일: _filesFromRow_(data[i])
     });
   }
 
@@ -114,38 +152,28 @@ function API_지출저장(p) {
   const sh = _ss_().getSheetByName(SHEET.EXPENSE);
   let rowIdx = -1;
   let nextId = Number(p.번호);
-  let prevFiles = { 영수증: '', 사진: '', 세금계산서: '', 거래명세서: '', 견적서: '', 발주서: '' };
+  let prevFiles = _emptyFiles_();
 
   if (p.번호) {
-    const ids = sh.getRange('A:A').getValues().flat();
-    rowIdx = ids.indexOf(Number(p.번호)) + 1;
+    rowIdx = _findRowById_(sh, p.번호);
     if (rowIdx > 1) {
       const prev = sh.getRange(rowIdx, 1, 1, HEADERS.length).getValues()[0];
       if (String(prev[3]).toLowerCase() !== u.이메일.toLowerCase() && u.권한 === ROLE.USER) {
         return { ok: false, error: '본인 데이터만 수정할 수 있습니다.' };
       }
-      prevFiles = { 영수증: prev[13], 사진: prev[14], 세금계산서: prev[15], 거래명세서: prev[16], 견적서: prev[17], 발주서: prev[18] };
+      prevFiles = _filesFromRow_(prev);
     }
   } else {
-    const ids = sh.getRange('A:A').getValues().flat().filter(Number);
-    nextId = ids.length ? Math.max(...ids) + 1 : 1;
+    nextId = _nextExpenseId_(sh);
   }
 
-  const finalFiles = {
-    영수증: p.파일.영수증 || prevFiles.영수증,
-    사진: p.파일.사진 || prevFiles.사진,
-    세금계산서: p.파일.세금계산서 || prevFiles.세금계산서,
-    거래명세서: p.파일.거래명세서 || prevFiles.거래명세서,
-    견적서: p.파일.견적서 || prevFiles.견적서,
-    발주서: p.파일.발주서 || prevFiles.발주서
-  };
+  const uploadFiles = p.파일 || {};
+  const finalFiles = FILE_FIELDS.reduce((acc, key) => {
+    acc[key] = uploadFiles[key] || prevFiles[key] || '';
+    return acc;
+  }, {});
 
-  const row = [
-    nextId, new Date(), p.사용일, u.이메일, u.이름, p.사용처, Number(p.금액 || 0), p.결제수단, p.분류, p.메모,
-    STATUS.SUBMITTED, '', '',
-    finalFiles.영수증, finalFiles.사진, finalFiles.세금계산서, finalFiles.거래명세서, finalFiles.견적서, finalFiles.발주서,
-    false, ''
-  ];
+  const row = _toExpenseRow_(nextId, p, u, finalFiles);
 
   if (rowIdx > 1) sh.getRange(rowIdx, 1, 1, row.length).setValues([row]);
   else sh.appendRow(row);
