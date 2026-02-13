@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    :root { --p: #2563eb; --bg: #f8fafc; }
+    body { font-family: 'Pretendard', sans-serif; background: var(--bg); margin: 0; padding: 20px; font-size: 14px; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; background: #e2e8f0; padding: 5px; border-radius: 10px; }
+    .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; border-radius: 8px; font-weight: 600; color: #64748b; }
+    .tab.active { background: white; color: var(--p); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+    .kpi { background:white; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #e2e8f0; }
+    .kpi b { display: block; font-size: 24px; color: var(--p); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px; border-bottom: 1px solid #f1f5f9; text-align: left; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; box-sizing: border-box; margin-bottom: 10px; }
+    button { background: var(--p); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .file-box { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12px; }
+    .status-제출 { color: #2563eb; font-weight: bold; }
+    .status-완료 { color: #16a34a; font-weight: bold; }
+    .status-반려 { color: #dc2626; font-weight: bold; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2 style="margin:0;">사내 결제·사용 처리</h2>
+    <div style="text-align:right"><b><?= 현재사용자.이름 ?></b> (<?= 현재사용자.권한 ?>)<br><small><?= 현재사용자.구글이메일 ?></small></div>
+  </div>
+
+  <div class="tabs" id="main-tabs">
+    <div class="tab active" data-tab="dash" onclick="showTab('dash', this)">홈/대시보드</div>
+    <div class="tab" data-tab="reg" onclick="showTab('reg', this)">지출 등록</div>
+    <div class="tab" data-tab="list" onclick="showTab('list', this)">결제 대기함</div>
+  </div>
+
+  <div id="tab-dash">
+    <div class="kpi-grid">
+      <div class="kpi">제출<b id="k1">0</b></div>
+      <div class="kpi">최종승인<b id="k2">0</b></div>
+      <div class="kpi">반려<b id="k3">0</b></div>
+    </div>
+    <div class="card">
+      <h3>최근 내 요청 현황</h3>
+      <div id="my-list">데이터를 불러오는 중...</div>
+    </div>
+  </div>
+
+  <div id="tab-reg" style="display:none">
+    <div class="card">
+      <h3 id="reg-title">지출 내역 등록</h3>
+      <input type="hidden" id="edit-no">
+      <label>사용일</label><input type="date" id="f-date">
+      <label>사용처</label><input type="text" id="f-place" placeholder="스타벅스, 주유소 등">
+      <label>금액</label><input type="number" id="f-amount">
+      <label>사용방법 (결제수단)</label>
+      <select id="f-method">
+        <option value="법인카드">법인카드</option>
+        <option value="개인카드">개인카드</option>
+        <option value="과제카드">과제카드</option>
+        <option value="현금">현금</option>
+      </select>
+      <label>분류</label>
+      <select id="f-cate">
+        <option value="식대">식대</option>
+        <option value="교통비">교통비</option>
+        <option value="소모품">소모품</option>
+        <option value="기타">기타</option>
+        <option value="회사물품">회사물품</option>
+        <option value="인터넷구매">인터넷구매</option>
+      </select>
+      <label>메모</label><textarea id="f-memo"></textarea>
+
+      <label>증빙 첨부</label>
+      <div class="file-box">
+        <div>영수증<input type="file" id="up-1"></div>
+        <div>사진<input type="file" id="up-2"></div>
+        <div>세금계산서<input type="file" id="up-3"></div>
+        <div>거래명세서<input type="file" id="up-4"></div>
+        <div>견적서<input type="file" id="up-5"></div>
+        <div>발주서<input type="file" id="up-6"></div>
+      </div>
+      <button onclick="save()" id="btn-save" style="width:100%; margin-top:20px;">제출하기</button>
+    </div>
+  </div>
+
+  <div id="tab-list" style="display:none">
+    <div class="tabs" style="background:#f1f5f9; font-size: 12px;" id="sub-tabs">
+      <div class="tab sub-tab active" onclick="filterList('승인자', this)">승인자 대기</div>
+      <div class="tab sub-tab" onclick="filterList('관리자', this)">관리자 대기</div>
+      <div class="tab sub-tab" onclick="filterList('완료', this)">완료/전체</div>
+    </div>
+    <div class="card" id="approval-box">권한 확인 중...</div>
+  </div>
+</div>
+
+<script>
+  let allData = {};
+
+  function showTab(t, tabEl = null) {
+    document.querySelectorAll('[id^="tab-"]').forEach(el => el.style.display = 'none');
+    document.getElementById('tab-' + t).style.display = 'block';
+    document.querySelectorAll('#main-tabs .tab').forEach(el => el.classList.remove('active'));
+    const target = tabEl || document.querySelector(`#main-tabs .tab[data-tab="${t}"]`);
+    if (target) target.classList.add('active');
+    if (t !== 'reg') load();
+  }
+
+  function load() {
+    google.script.run.withSuccessHandler(res => {
+      allData = res;
+      document.getElementById('k1').innerText = res.summary.제출;
+      document.getElementById('k2').innerText = res.summary.승인;
+      document.getElementById('k3').innerText = res.summary.반려;
+      renderMyList();
+      filterList('승인자');
+    }).API_데이터로드();
+  }
+
+  function renderMyList() {
+    const rows = allData.myRows || [];
+    if (!rows.length) {
+      document.getElementById('my-list').innerHTML = '등록된 내역이 없습니다.';
+      return;
+    }
+
+    let h = '<table><tr><th>사용일</th><th>사용처</th><th>금액</th><th>상태</th><th>관리</th></tr>';
+    rows.forEach(r => {
+      const statusClass = r.상태 === '승인(최종)' ? '완료' : (r.상태.includes('반려') ? '반려' : '제출');
+      h += `<tr><td>${new Date(r.사용일).toLocaleDateString()}</td><td>${r.사용처}</td>
+            <td>${Number(r.금액).toLocaleString()}</td>
+            <td class="status-${statusClass}">${r.상태}</td>
+            <td><button style="background:#f59e0b; padding:4px 8px;" onclick="edit('${r.번호}')">수정</button></td></tr>`;
+    });
+    document.getElementById('my-list').innerHTML = h + '</table>';
+  }
+
+  function filterList(type, tabEl = null) {
+    if (tabEl) {
+      document.querySelectorAll('#sub-tabs .tab').forEach(el => el.classList.remove('active'));
+      tabEl.classList.add('active');
+    }
+
+    if ((allData.role || '사용자') === '사용자') {
+      document.getElementById('approval-box').innerHTML = '승인 권한이 없습니다.';
+      return;
+    }
+
+    let rows = [];
+    if (type === '승인자') rows = allData.allRows.filter(r => r.상태 === '제출');
+    else if (type === '관리자') rows = allData.allRows.filter(r => r.상태 === '승인자승인');
+    else rows = allData.allRows.filter(r => r.상태 === '승인(최종)' || r.상태 === '반려');
+
+    let h = '<table><tr><th>요청자</th><th>내용</th><th>금액</th><th>상태</th><th>처리</th></tr>';
+    rows.forEach(r => {
+      const approveValue = (type === '관리자') ? '승인(최종)' : '승인자승인';
+      h += `<tr><td>${r.요청자이름}</td><td>${r.사용처}</td><td>${Number(r.금액).toLocaleString()}</td>
+            <td>${r.상태}</td>
+            <td><button onclick="proc('${r.번호}','${approveValue}')">승인</button>
+                <button style="background:#ef4444" onclick="proc('${r.번호}','반려')">반려</button></td></tr>`;
+    });
+    document.getElementById('approval-box').innerHTML = rows.length ? h + '</table>' : '내역이 없습니다.';
+  }
+
+  async function save() {
+    const btn = document.getElementById('btn-save');
+    btn.disabled = true; btn.innerText = '처리 중...';
+
+    try {
+      const files = {};
+      const labels = ['영수증','사진','세금계산서','거래명세서','견적서','발주서'];
+      for (let i = 1; i <= 6; i++) {
+        const el = document.getElementById('up-' + i);
+        if (el.files.length > 0) {
+          const file = el.files[0];
+          const base64 = await new Promise(r => {
+            const reader = new FileReader();
+            reader.onload = () => r(reader.result.split(',')[1]);
+            reader.readAsDataURL(file);
+          });
+          const res = await new Promise(r => google.script.run.withSuccessHandler(r).API_파일업로드({
+            base64, fileName: file.name, mimeType: file.type
+          }));
+          files[labels[i - 1]] = res.url;
+        }
+      }
+
+      const p = {
+        번호: document.getElementById('edit-no').value,
+        사용일: document.getElementById('f-date').value,
+        사용처: document.getElementById('f-place').value,
+        금액: document.getElementById('f-amount').value,
+        결제수단: document.getElementById('f-method').value,
+        분류: document.getElementById('f-cate').value,
+        메모: document.getElementById('f-memo').value,
+        파일: files
+      };
+
+      google.script.run.withSuccessHandler((res) => {
+        if (!res.ok) {
+          alert(res.error || '저장 실패');
+          return;
+        }
+        alert('저장되었습니다.');
+        resetForm();
+        showTab('dash');
+      }).API_지출저장(p);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = document.getElementById('edit-no').value ? '수정하기' : '제출하기';
+    }
+  }
+
+  function edit(no) {
+    const r = (allData.myRows || []).find(x => String(x.번호) === String(no));
+    if (!r) return;
+    showTab('reg');
+    document.getElementById('reg-title').innerText = '지출 내역 수정 (#' + no + ')';
+    document.getElementById('edit-no').value = no;
+    document.getElementById('f-date').value = new Date(r.사용일).toISOString().split('T')[0];
+    document.getElementById('f-place').value = r.사용처;
+    document.getElementById('f-amount').value = r.금액;
+    document.getElementById('f-method').value = r.결제수단;
+    document.getElementById('f-cate').value = r.분류;
+    document.getElementById('f-memo').value = r.메모;
+    document.getElementById('btn-save').innerText = '수정하기';
+  }
+
+  function resetForm() {
+    document.getElementById('reg-title').innerText = '지출 내역 등록';
+    document.getElementById('edit-no').value = '';
+    ['f-date','f-place','f-amount','f-memo'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f-method').selectedIndex = 0;
+    document.getElementById('f-cate').selectedIndex = 0;
+    for (let i = 1; i <= 6; i++) document.getElementById('up-' + i).value = '';
+    document.getElementById('btn-save').innerText = '제출하기';
+  }
+
+  function proc(no, decision) {
+    const reason = decision === '반려' ? prompt('반려 사유:') || '' : '';
+    google.script.run.withSuccessHandler((res) => {
+      if (!res.ok) {
+        alert(res.error || '처리 실패');
+        return;
+      }
+      alert('처리완료');
+      load();
+    }).API_승인처리({ 번호: no, 결정: decision, 사유: reason });
+  }
+
+  window.onload = load;
+</script>
+</body>
+</html>
