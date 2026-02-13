@@ -77,7 +77,7 @@ function 현재사용자_() {
   for (let i = 1; i < data.length; i++) {
     if (_safeLower_(data[i][1]) === googleEmail) {
       return {
-        이메일: String(data[i][0] || googleEmail).trim(),
+        이메일: String(data[i][0] || '').trim(),
         구글이메일: String(data[i][1] || googleEmail).trim(),
         이름: String(data[i][2] || '미등록사용자').trim(),
         권한: _정규권한_(data[i][3]),
