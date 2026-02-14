@@ -54,16 +54,16 @@ function onOpen() {
 }
 
 function 현재사용자_() {
-  const googleEmail = String(Session.getActiveUser().getEmail() || '').toLowerCase().trim();
+  const activeUserEmail = String(Session.getActiveUser().getEmail() || '').toLowerCase().trim();
   const sh = _ss_().getSheetByName(SHEET.USERS);
   const data = sh ? sh.getDataRange().getValues() : [];
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][1]).toLowerCase().trim() === googleEmail) {
+    if (String(data[i][1]).toLowerCase().trim() === activeUserEmail) {
       return { 이메일: data[i][0], 구글이메일: data[i][1], 이름: data[i][2], 권한: data[i][3], 매핑: true };
     }
   }
-  return { 이메일: googleEmail, 구글이메일: googleEmail, 이름: '미등록사용자', 권한: ROLE.USER, 매핑: false };
+  return { 이메일: activeUserEmail, 구글이메일: activeUserEmail, 이름: '미등록사용자', 권한: ROLE.USER, 매핑: false };
 }
 
 function doGet() {
