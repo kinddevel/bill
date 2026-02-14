@@ -131,19 +131,20 @@ function API_지출저장(p) {
     nextId = ids.length ? Math.max(...ids) + 1 : 1;
   }
 
+  const filePayload = p['파일'] || {};
   const finalFiles = {
-    영수증: p.파일.영수증 || prevFiles.영수증,
-    사진: p.파일.사진 || prevFiles.사진,
-    세금계산서: p.파일.세금계산서 || prevFiles.세금계산서,
-    거래명세서: p.파일.거래명세서 || prevFiles.거래명세서,
-    견적서: p.파일.견적서 || prevFiles.견적서,
-    발주서: p.파일.발주서 || prevFiles.발주서
+    '영수증': filePayload['영수증'] || prevFiles['영수증'],
+    '사진': filePayload['사진'] || prevFiles['사진'],
+    '세금계산서': filePayload['세금계산서'] || prevFiles['세금계산서'],
+    '거래명세서': filePayload['거래명세서'] || prevFiles['거래명세서'],
+    '견적서': filePayload['견적서'] || prevFiles['견적서'],
+    '발주서': filePayload['발주서'] || prevFiles['발주서']
   };
 
   const row = [
     nextId, new Date(), p.사용일, u.이메일, u.이름, p.사용처, Number(p.금액 || 0), p.결제수단, p.분류, p.메모,
     STATUS.SUBMITTED, '', '',
-    finalFiles.영수증, finalFiles.사진, finalFiles.세금계산서, finalFiles.거래명세서, finalFiles.견적서, finalFiles.발주서,
+    finalFiles['영수증'], finalFiles['사진'], finalFiles['세금계산서'], finalFiles['거래명세서'], finalFiles['견적서'], finalFiles['발주서'],
     false, ''
   ];
 
