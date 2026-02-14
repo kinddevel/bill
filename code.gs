@@ -112,6 +112,8 @@ function API_데이터로드() {
 function API_지출저장(p) {
   const u = 현재사용자_();
   const sh = _ss_().getSheetByName(SHEET.EXPENSE);
+  p = p || {};
+  p.파일 = p.파일 || {};
   let rowIdx = -1;
   let nextId = Number(p.번호);
   let prevFiles = { 영수증: '', 사진: '', 세금계산서: '', 거래명세서: '', 견적서: '', 발주서: '' };
@@ -185,6 +187,8 @@ function API_승인처리(p) {
 
 function API_파일업로드(p) {
   const u = 현재사용자_();
+  p = p || {};
+  if (!p.base64 || !p.fileName) return { ok: false, error: '파일 데이터가 올바르지 않습니다.' };
   const root = _getOrCreateFolder_(DriveApp.getRootFolder(), '사내결제사진');
   const userFolder = _getOrCreateFolder_(root, u.이름 || u.구글이메일 || '미분류');
 
