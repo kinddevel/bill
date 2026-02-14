@@ -68,7 +68,7 @@ function 현재사용자_() {
 
 function doGet() {
   _ensureSheets_();
-  const t = HtmlService.createTemplateFromFile('index');
+  const t = HtmlService.createTemplateFromFile('HTML');
   t.현재사용자 = 현재사용자_();
   return t.evaluate().setTitle('사내 결제 시스템').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -110,6 +110,8 @@ function API_데이터로드() {
 }
 
 function API_지출저장(p) {
+  p = p || {};
+  p.파일 = p.파일 || {};
   const u = 현재사용자_();
   const sh = _ss_().getSheetByName(SHEET.EXPENSE);
   let rowIdx = -1;
