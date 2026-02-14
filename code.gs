@@ -54,13 +54,22 @@ function onOpen() {
 }
 
 function 현재사용자_() {
-  const googleEmail = String(Session.getActiveUser().getEmail() || '').toLowerCase().trim();
+  const googleEmail = _normalizeEmail_(Session.getActiveUser().getEmail());
   const sh = _ss_().getSheetByName(SHEET.USERS);
   const data = sh ? sh.getDataRange().getValues() : [];
 
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][1]).toLowerCase().trim() === googleEmail) {
-      return { 이메일: data[i][0], 구글이메일: data[i][1], 이름: data[i][2], 권한: data[i][3], 매핑: true };
+    const phosemEmail = _normalizeEmail_(data[i][0]);
+    const mappedGoogle = _normalizeEmail_(data[i][1]);
+
+    if (mappedGoogle === googleEmail || phosemEmail === googleEmail) {
+      return {
+        이메일: phosemEmail || mappedGoogle,
+        구글이메일: mappedGoogle || googleEmail,
+        이름: data[i][2],
+        권한: data[i][3] || ROLE.USER,
+        매핑: true
+      };
     }
   }
   return { 이메일: googleEmail, 구글이메일: googleEmail, 이름: '미등록사용자', 권한: ROLE.USER, 매핑: false };
@@ -68,7 +77,7 @@ function 현재사용자_() {
 
 function doGet() {
   _ensureSheets_();
-  const t = HtmlService.createTemplateFromFile('index');
+  const t = HtmlService.createTemplateFromFile('HTML');
   t.현재사용자 = 현재사용자_();
   return t.evaluate().setTitle('사내 결제 시스템').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -212,6 +221,10 @@ function _extractExt_(fileName) {
 
 function _sanitizeFileName_(name) {
   return String(name).replace(/[\\/:*?"<>|#%{}~&]/g, '_').trim() || 'file';
+}
+
+function _normalizeEmail_(email) {
+  return String(email || '').toLowerCase().trim();
 }
 
 function _메일발송_(u, row, files) {

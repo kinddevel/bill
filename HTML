@@ -110,14 +110,27 @@
   }
 
   function load() {
-    google.script.run.withSuccessHandler(res => {
-      allData = res;
-      document.getElementById('k1').innerText = res.summary.제출;
-      document.getElementById('k2').innerText = res.summary.승인;
-      document.getElementById('k3').innerText = res.summary.반려;
-      renderMyList();
-      filterList('승인자');
-    }).API_데이터로드();
+    if (!google?.script?.run) {
+      document.getElementById('my-list').innerHTML = '앱 스크립트 연결에 실패했습니다.';
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(res => {
+        allData = res || { summary: { 제출: 0, 승인: 0, 반려: 0 }, myRows: [], allRows: [], role: '사용자' };
+        document.getElementById('k1').innerText = allData.summary?.제출 ?? 0;
+        document.getElementById('k2').innerText = allData.summary?.승인 ?? 0;
+        document.getElementById('k3').innerText = allData.summary?.반려 ?? 0;
+        renderMyList();
+        filterList('승인자');
+      })
+      .withFailureHandler(err => {
+        console.error(err);
+        const msg = err && err.message ? err.message : '데이터를 불러오지 못했습니다.';
+        document.getElementById('my-list').innerHTML = msg;
+        document.getElementById('approval-box').innerHTML = msg;
+      })
+      .API_데이터로드();
   }
 
   function renderMyList() {
@@ -241,14 +254,19 @@
 
   function proc(no, decision) {
     const reason = decision === '반려' ? prompt('반려 사유:') || '' : '';
-    google.script.run.withSuccessHandler((res) => {
-      if (!res.ok) {
-        alert(res.error || '처리 실패');
-        return;
-      }
-      alert('처리완료');
-      load();
-    }).API_승인처리({ 번호: no, 결정: decision, 사유: reason });
+    google.script.run
+      .withSuccessHandler((res) => {
+        if (!res.ok) {
+          alert(res.error || '처리 실패');
+          return;
+        }
+        alert('처리완료');
+        load();
+      })
+      .withFailureHandler(err => {
+        alert((err && err.message) || '처리 실패');
+      })
+      .API_승인처리({ 번호: no, 결정: decision, 사유: reason });
   }
 
   window.onload = load;
