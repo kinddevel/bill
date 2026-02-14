@@ -110,8 +110,13 @@ function API_데이터로드() {
 }
 
 function API_지출저장(p) {
+  if (!p || typeof p !== 'object') return { ok: false, error: '요청 데이터가 올바르지 않습니다.' };
+
   const u = 현재사용자_();
   const sh = _ss_().getSheetByName(SHEET.EXPENSE);
+  if (!sh) return { ok: false, error: '지출내역 시트를 찾을 수 없습니다.' };
+
+  const inputFiles = p.파일 || {};
   let rowIdx = -1;
   let nextId = Number(p.번호);
   let prevFiles = { 영수증: '', 사진: '', 세금계산서: '', 거래명세서: '', 견적서: '', 발주서: '' };
@@ -132,12 +137,12 @@ function API_지출저장(p) {
   }
 
   const finalFiles = {
-    영수증: p.파일.영수증 || prevFiles.영수증,
-    사진: p.파일.사진 || prevFiles.사진,
-    세금계산서: p.파일.세금계산서 || prevFiles.세금계산서,
-    거래명세서: p.파일.거래명세서 || prevFiles.거래명세서,
-    견적서: p.파일.견적서 || prevFiles.견적서,
-    발주서: p.파일.발주서 || prevFiles.발주서
+    영수증: inputFiles.영수증 || prevFiles.영수증,
+    사진: inputFiles.사진 || prevFiles.사진,
+    세금계산서: inputFiles.세금계산서 || prevFiles.세금계산서,
+    거래명세서: inputFiles.거래명세서 || prevFiles.거래명세서,
+    견적서: inputFiles.견적서 || prevFiles.견적서,
+    발주서: inputFiles.발주서 || prevFiles.발주서
   };
 
   const row = [
@@ -155,10 +160,14 @@ function API_지출저장(p) {
 }
 
 function API_승인처리(p) {
+  if (!p || typeof p !== 'object') return { ok: false, error: '요청 데이터가 올바르지 않습니다.' };
+
   const u = 현재사용자_();
   if (u.권한 === ROLE.USER) return { ok: false, error: '권한이 없습니다.' };
 
   const sh = _ss_().getSheetByName(SHEET.EXPENSE);
+  if (!sh) return { ok: false, error: '지출내역 시트를 찾을 수 없습니다.' };
+
   const ids = sh.getRange('A:A').getValues().flat();
   const rowIdx = ids.indexOf(Number(p.번호)) + 1;
   if (rowIdx <= 1) return { ok: false, error: '내역 찾기 실패' };
@@ -184,6 +193,9 @@ function API_승인처리(p) {
 }
 
 function API_파일업로드(p) {
+  if (!p || typeof p !== 'object') return { ok: false, error: '요청 데이터가 올바르지 않습니다.' };
+  if (!p.fileName || !p.base64 || !p.mimeType) return { ok: false, error: '파일 정보가 누락되었습니다.' };
+
   const u = 현재사용자_();
   const root = _getOrCreateFolder_(DriveApp.getRootFolder(), '사내결제사진');
   const userFolder = _getOrCreateFolder_(root, u.이름 || u.구글이메일 || '미분류');
